@@ -17,6 +17,7 @@
 #if PICO_RP2350
 #include "hardware/regs/sio.h"
 #endif
+#include "usb.h"
 
 // Gesture thresholds, in samples at the 100 ms (10 Hz) poll cadence.
 static constexpr int HOLD_SAMPLES = 15;         // ~1.5 s held -> clear all pairings
@@ -77,10 +78,14 @@ static void button_dispatch(int clicks) {
         *((volatile uint32_t *) 0xe000ed0c) = 0x05fa0004; // SCB AIRCR: VECTKEY | SYSRESETREQ
         __dsb();
         while (true) { tight_loop_contents(); } // wait for the reset
-    } else {
+    } else if (clicks == 3) {
         // triple click -> reboot into BOOTSEL (USB mass storage) for reflashing.
         printf("[BTN] BOOTSEL triple click - reboot to BOOTSEL\n");
         reset_usb_boot(0, 0); // noreturn
+    } else {
+        // quadruple click -> toggle USB config mode (extra HID feature reports for Windows)
+        printf("[BTN] BOOTSEL quadruple click - config mode %s\n", usb_config_mode ? "off" : "on");
+        usb_set_config_mode(!usb_config_mode);
     }
 }
 

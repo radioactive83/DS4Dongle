@@ -14,6 +14,21 @@
 #include "utils.h"
 #include "wake.h"
 
+volatile bool usb_config_mode = false;
+
+void usb_set_config_mode(bool on) {
+    if (usb_config_mode == on) return;
+    usb_config_mode = on;
+    // USB currently hidden / not enumerated: just remember the flag, the
+    // descriptor callbacks pick it up on the next enumeration.
+    if (!tud_mounted()) return;
+    wake_note_usb_reconnect();
+    tud_disconnect();
+    sleep_ms(150);
+    usb_audio_latch_exposure();
+    tud_connect();
+}
+
 uint8_t mute[2] = {}; // 0: SPEAKER(0x02) 1: MIC(0x05)
 // 0: SPEAKER(0x02) 1: MIC(0x05). Mic seed kept within the advertised
 // -23.25..+24 dB range so GET_CUR is never out of bounds before the host

@@ -102,6 +102,7 @@ void pico_cmd_set(uint8_t report_id, uint8_t const *buffer, uint16_t bufsize) {
     }
     if (buffer[0] == 0x03) {
         printf("[CMD] Enter tud reconnect func\n");
+        usb_config_mode = 0; // disable config mode on reconnect command
         wake_note_usb_reconnect();   // this disconnect is intentional, not a host sleep
         tud_disconnect();
         sleep_ms(150);

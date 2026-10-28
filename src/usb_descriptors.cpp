@@ -455,6 +455,12 @@ TU_VERIFY_STATIC(CONFIG_DESC_LEN_BASE == CONFIG_DESC_HDR_LEN + CONFIG_DESC_LEN_A
 // demand from descriptor_configuration above.
 static uint8_t descriptor_configuration_no_audio[CONFIG_DESC_LEN_TOTAL - CONFIG_DESC_LEN_AUDIO];
 
+// HID Report length for original DS4 and for config mode with extended HID report descriptor
+constexpr uint16_t HID_RPT_LEN_DS4_ORG = 507;
+constexpr uint16_t HID_RPT_LEN_DS4_CFG_EXTRA = 32;
+constexpr uint16_t HID_RPT_LEN_DS4_CFG = HID_RPT_LEN_DS4_ORG + HID_RPT_LEN_DS4_CFG_EXTRA;
+static uint8_t desc_hid_report_ds4_cfg[HID_RPT_LEN_DS4_CFG];
+
 // Invoked when received GET CONFIGURATION DESCRIPTOR
 // Application return pointer to descriptor
 // Descriptor contents must exist long enough for transfer to complete
@@ -475,6 +481,10 @@ uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
     constexpr auto offset = CONFIG_DESC_LEN_BASE;
     descriptor_configuration[offset - 1] = bInterval;
     descriptor_configuration[offset - 8] = bInterval;
+
+    const uint16_t hid_len = usb_config_mode ? HID_RPT_LEN_DS4_CFG : HID_RPT_LEN_DS4_ORG;
+    descriptor_configuration[offset - 16] = hid_len & 0xFF;
+    descriptor_configuration[offset - 15] = hid_len >> 8;
 
     // Wake / Game Bar are runtime features. Advertise REMOTE_WAKEUP only when wake is
     // on, and include the keyboard interface (the LAST descriptor block) only when wake
@@ -783,6 +793,27 @@ uint8_t const desc_hid_report_ds4[] = {
 };
 static_assert(sizeof(desc_hid_report_ds4) == 507);
 
+// Additional HID report descriptor data for config in Windows
+static uint8_t const desc_hid_report_ds4_cfg_extra[] = {
+0x85, 0xF6, // Report ID (246)
+0x09, 0x60, // Usage (0x60)
+0x95, 1 + sizeof(Config_body), // Report Count (xx), command + config_body
+0xB1, 0x02, // Feature (Data,Var)
+0x85, 0xF7, // Report ID (247)
+0x09, 0x61, // Usage (0x61)
+0x95, sizeof(Config_body), // Report Count (xx), config_body
+0xB1, 0x02, // Feature (Data,Var)
+0x85, 0xF8, // Report ID (248)
+0x09, 0x62, // Usage (0x62)
+0x95, 0x20, // Report Count (32), version string
+0xB1, 0x02, // Feature (Data,Var)
+0x85, 0xF9, // Report ID (249)
+0x09, 0x63, // Usage (0x63)
+0x95, 0x02, // Report Count (2), RSSI + flags
+0xB1, 0x02 // Feature (Data,Var)
+};
+static_assert(sizeof(desc_hid_report_ds4_cfg_extra) == HID_RPT_LEN_DS4_CFG_EXTRA);
+
 #ifdef ENABLE_WAKE_HID
 // 41-byte boot-keyboard report descriptor (modifier byte + reserved + 6 keycodes,
 // no Report ID -- boot protocol forbids one and avoids collision with the gamepad's Report ID 1).
@@ -823,7 +854,14 @@ uint8_t const *tud_hid_descriptor_report_cb(uint8_t itf) {
     if (itf == 1) return desc_hid_report_kbd;
 #endif
     (void) itf;
-    return desc_hid_report_ds4;
+    if(!usb_config_mode) {
+        return desc_hid_report_ds4;
+    } else {
+        memcpy(desc_hid_report_ds4_cfg, desc_hid_report_ds4, HID_RPT_LEN_DS4_ORG - 1); //copy without end collection (0xC0)
+        memcpy(desc_hid_report_ds4_cfg + HID_RPT_LEN_DS4_ORG - 1, desc_hid_report_ds4_cfg_extra, sizeof(desc_hid_report_ds4_cfg_extra));
+        desc_hid_report_ds4_cfg[HID_RPT_LEN_DS4_CFG - 1] = 0xC0;
+        return desc_hid_report_ds4_cfg;
+    }
 }
 
 //--------------------------------------------------------------------+
@@ -860,7 +898,7 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
 
         case STRID_SERIAL:
             chr_count = board_usb_get_serial(_desc_str + 1, 32) + 1;
-            _desc_str[chr_count] = '3'; // refresh windows cache (bumped for the real-DS4v2 mono 16 kHz mic)
+            _desc_str[chr_count] = usb_config_mode ? 'C' : '3'; // refresh windows cache (bumped for the real-DS4v2 mono 16 kHz mic)
             break;
 
         default:

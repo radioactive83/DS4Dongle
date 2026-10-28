@@ -5,6 +5,8 @@
 #ifndef DS5_BRIDGE_USB_H
 #define DS5_BRIDGE_USB_H
 
+extern volatile bool usb_config_mode;
+
 extern uint8_t mute[2]; // 0: SPEAKER(0x02) 1: MIC(0x05)
 extern float volume[2]; // 0: SPEAKER(0x02) 1: MIC(0x05)
 
@@ -23,5 +25,8 @@ void usb_audio_latch_exposure();
 // so the audio device appears/disappears with the headset. No-op when
 // audio_follow_jack is off.
 void usb_audio_exposure_task();
+
+// Enable/disable config mode with different USB HID report descriptor
+void usb_set_config_mode(bool on);
 
 #endif //DS5_BRIDGE_USB_H

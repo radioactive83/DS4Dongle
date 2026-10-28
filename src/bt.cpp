@@ -607,6 +607,7 @@ static void __not_in_flash_func(hci_packet_handler)(uint8_t packet_type, uint16_
             // while the host is suspended -- hiding then re-showing re-enumerates, and a USB
             // re-connect wakes a sleeping host. Defer the hide until the host is awake.
             if (!get_config().enable_wake && !tud_suspended()) {
+                usb_config_mode = 0; // disable config mode
                 tud_disconnect();
             }
 #endif
